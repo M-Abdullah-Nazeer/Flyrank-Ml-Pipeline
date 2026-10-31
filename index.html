@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ranking pages that keep under-capturing clicks: a decision-support study</title>
+<style>
+:root{--bg:#f7f8fa;--ink:#16212b;--mute:#5a6773;--line:#d5dbe1;--acc:#1f5f8b;--base:#b9770e;--card:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#10171d;--ink:#e6ebef;--mute:#9aa7b2;--line:#2b3742;--acc:#6db3e0;--base:#e0a64a;--card:#17212a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.65 Charter,"Iowan Old Style",Georgia,serif}
+.wrap{max-width:1040px;margin:0 auto;padding:32px 20px 80px;display:grid;grid-template-columns:200px minmax(0,700px);gap:48px}
+nav{position:sticky;top:24px;align-self:start;font:14px/1.9 system-ui,sans-serif}
+nav a{display:block;color:var(--mute);text-decoration:none;border-left:2px solid var(--line);padding-left:12px}
+nav a:hover,nav a:focus-visible{color:var(--acc);border-color:var(--acc)}
+h1{font-size:2.1rem;line-height:1.2;margin:0 0 .4em;letter-spacing:-.01em}
+h2{font:700 1.35rem/1.3 system-ui,sans-serif;margin:2.6em 0 .6em;padding-top:.4em;border-top:1px solid var(--line)}
+h3{font:600 1.02rem system-ui,sans-serif;margin:1.6em 0 .3em}
+.by{color:var(--mute);font:15px system-ui,sans-serif}
+.abs{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--acc);padding:16px 20px;margin:24px 0}
+.abs p{margin:.3em 0}
+table{border-collapse:collapse;width:100%;font:14px/1.45 system-ui,sans-serif;margin:1em 0}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--mute)}
+.sc{overflow-x:auto}
+.bars{font:14px system-ui,sans-serif;margin:1em 0}
+.row{display:grid;grid-template-columns:190px 1fr 48px;gap:10px;align-items:center;margin:6px 0}
+.b{height:14px;background:var(--acc)}.b.base{background:var(--base)}.b.mid{background:var(--mute)}
+.cap{color:var(--mute);font:14px/1.5 system-ui,sans-serif}
+code{font:.85em ui-monospace,Menlo,monospace}
+a{color:var(--acc)}
+@media(max-width:860px){.wrap{display:block}nav{display:none}.row{grid-template-columns:120px 1fr 44px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav aria-label="Sections">
+<a href="#abstract">Abstract</a><a href="#intro">Introduction</a><a href="#data">Data</a><a href="#method">Methodology</a><a href="#results">Results</a><a href="#limits">Limitations</a><a href="#recs">Recommendations</a><a href="#repro">Reproducibility</a><a href="#credit">Acknowledgments</a>
+</nav>
+<main>
+<h1>Which visible pages will keep under-capturing clicks? A decision-support ranking on Search Console data</h1>
+<p class="by">Muhammad Abdullah Nazeer &middot; FlyRank ML Internship capstone &middot; Lane: CTR / engagement opportunity scoring</p>
+
+<section id="abstract" class="abs">
+<h3 style="margin-top:0">Abstract</h3>
+<p><b>Question.</b> Which already-visible pages will keep earning fewer clicks than expected for their search position, so a content team should review them first?</p>
+<p><b>Method.</b> From anonymized daily Search Console data, I built page-level features from days 1&ndash;15 of a month and a label from days 16 onward, then trained a gradient-boosting ranker on Feb&ndash;Mar 2026.</p>
+<p><b>Result.</b> On held-out April 2026, it reached AUC 0.789 against 0.680 for a simple missed-clicks rule, and 92% of its top 500 pages truly under-captured (base rate 50%).</p>
+<p><b>Validation.</b> With a later month and unseen clients, the lead held but narrowed (AUC 0.769 vs 0.679), on a small sample.</p>
+<p><b>Use.</b> I turn the ranking into a human-reviewed action playbook. The results are observed associations for decision support, not proof of cause.</p>
+</section>
+
+<h2 id="intro">1. Introduction</h2>
+<p>Content teams cannot review every page. Many pages are visible in search yet earn fewer clicks than pages at the same position usually do, which points to a snippet, intent or content problem worth a look. The decision this work supports is narrow: <em>which pages should a person review first, and what should they check?</em> The output is a ranked queue with a reason code per page, not an automatic editor.</p>
+
+<h2 id="data">2. Data</h2>
+<p><b>Release.</b> FlyRank ML Internship pseudonymized warehouse (July 2026 release), table <code>fact_content_daily_performance</code>, Search Console columns only. One row is one page on one day for one client; the grain was verified (March: 9,841,378 rows, 9,841,378 distinct keys).</p>
+<p><b>Windows.</b> Training months 2026-02 and 2026-03; evaluation month 2026-04. Within each month, features use days 1&ndash;15 and the label uses day 16 to month end. The final month (2026-06) was kept sealed and not used.</p>
+<p><b>Availability.</b> Rows were kept only where Search Console data was available (<code>IS TRUE</code>): 3,611,061 of 9,841,378 March rows (36.7%).</p>
+<p><b>Excluded and why.</b> GA4, session-channel and AI-referral columns (a different lane); pages with under 100 impressions in days 1&ndash;15 or average position beyond 20 (too noisy to judge CTR); product flags and health scores (leakage risk); all identifiers, domains and queries from this page (public safety). The labelled set also needs at least 100 impressions in days 16+.</p>
+<table><tr><th></th><th>Pages</th><th>Share labelled &ldquo;under-captures&rdquo;</th></tr>
+<tr><td>Training (Feb+Mar)</td><td>105,942</td><td>51.5%</td></tr>
+<tr><td>Evaluation (Apr)</td><td>59,986</td><td>49.7%</td></tr></table>
+
+<h2 id="method">3. Methodology</h2>
+<h3>Label</h3>
+<p>A page is labelled 1 if its clicks in days 16+ are below 50% of the clicks expected for its position bucket (1&ndash;3, 4&ndash;6, 7&ndash;10, 11&ndash;20). Expected CTR is the pooled CTR of each bucket, computed from training months only. The 50% cut-off is my choice, so some &ldquo;wrong&rdquo; picks are near misses.</p>
+<h3>Features (all from days 1&ndash;15)</h3>
+<p>Log impressions, average position (impression-weighted), CTR, CTR gap ratio (CTR divided by expected CTR), impression trend (days 8&ndash;15 vs 1&ndash;7) and days with data.</p>
+<h3>Baselines and models</h3>
+<p>(a) The Week-4 rule: missed clicks = impressions &times; (expected CTR &minus; actual CTR); (b) CTR gap ratio alone; (c) logistic regression; (d) gradient boosting. The more complex model is preferred only if it wins clearly on held-out data.</p>
+<h3>Validation design</h3>
+<p>Main split: train on Feb+Mar, test on Apr, with every method scored on the same test pages. Robustness: random rows (the easy version), clients held out, and April pages of clients never seen in training.</p>
+<h3>Leakage checks</h3>
+<p>Features end on day 15 (checked in code). The label window is never used for features. Expected CTR comes from training rows only. A deliberate leak (adding future clicks) raised AUC to 0.985, which confirms the audit would catch one. No single feature predicts the label near-perfectly (strongest: CTR, single-feature AUC 0.75). About 80% of April pages also appeared in training months; on never-seen pages AUC was 0.769 against 0.788 overall.</p>
+
+<h2 id="results">4. Results</h2>
+<h3>Model vs baseline, same test pages (April 2026, n = 59,986; base rate 49.7%)</h3>
+<div class="bars" role="img" aria-label="AUC by method: baseline 0.680, gap ratio 0.745, logistic regression 0.750, gradient boosting 0.789">
+<div class="row"><span>Week-4 rule</span><div class="b base" style="width:68%"></div><span>0.680</span></div>
+<div class="row"><span>CTR gap ratio alone</span><div class="b mid" style="width:74.5%"></div><span>0.745</span></div>
+<div class="row"><span>Logistic regression</span><div class="b mid" style="width:75%"></div><span>0.750</span></div>
+<div class="row"><span>Gradient boosting</span><div class="b" style="width:78.9%"></div><span>0.789</span></div>
+</div>
+<p class="cap">Figure 1. ROC AUC on the held-out month (bars start at 0, full width = 1.0).</p>
+<div class="sc"><table><tr><th>Method</th><th>AUC</th><th>Precision@100</th><th>@500</th><th>@1000</th></tr>
+<tr><td>Week-4 rule</td><td>0.680</td><td>0.79</td><td>0.786</td><td>0.763</td></tr>
+<tr><td>CTR gap ratio alone</td><td>0.745</td><td>0.78</td><td>0.712</td><td>0.735</td></tr>
+<tr><td>Logistic regression</td><td>0.750</td><td>0.87</td><td>0.824</td><td>0.803</td></tr>
+<tr><td><b>Gradient boosting</b></td><td><b>0.789</b></td><td><b>0.90</b></td><td><b>0.918</b></td><td><b>0.911</b></td></tr></table></div>
+<h3>Does the lead survive stricter splits?</h3>
+<div class="sc"><table><tr><th>Split</th><th>n test</th><th>Base rate</th><th>AUC rule &rarr; model</th><th>p@500 rule &rarr; model</th></tr>
+<tr><td>Random rows (easy)</td><td>41,482</td><td>0.496</td><td>0.695 &rarr; 0.787</td><td>0.764 &rarr; 0.928</td></tr>
+<tr><td>Clients held out</td><td>69,221</td><td>0.494</td><td>0.697 &rarr; 0.792</td><td>0.754 &rarr; 0.932</td></tr>
+<tr><td>Later month (main)</td><td>59,986</td><td>0.497</td><td>0.680 &rarr; 0.788</td><td>0.786 &rarr; 0.924</td></tr>
+<tr><td>Later month + unseen clients</td><td>7,657</td><td>0.537</td><td>0.679 &rarr; 0.769</td><td>0.778 &rarr; 0.898</td></tr></table></div>
+<p>The honest splits did not make the model look much worse than the random split. Only the strictest one is lower (AUC 0.769), and it rests on one draw of 7,657 pages, so I read it as directional.</p>
+<h3>What the model leans on and where it errs</h3>
+<p>Permutation importance is dominated by the CTR gap ratio (AUC drop 0.177), well ahead of log impressions (0.044) and CTR (0.015); the other three features each add under 0.006. Among the model&rsquo;s top 1,000 picks, 8.9% were wrong. Errors concentrate on top-3 pages (13.5% wrong), where a search feature may take the click, and on mid-volume pages with 1k&ndash;5k impressions (13.1%). Many false positives were near misses just above the cut-off; false negatives were pages whose CTR collapsed later in the month, which no day 1&ndash;15 feature can foresee.</p>
+
+<h2 id="limits">5. Limitations and honest framing</h2>
+<p>These are observed associations over three months of data, useful for decision support.</p>
+<ul>
+<li>The ranker shows which pages are likely to keep under-capturing, not why, and not that a rewrite or refresh would raise clicks.</li>
+<li>The label cut-off (50% of expected) and the expected-CTR curve are my choices; the curve is only roughly monotonic across position buckets.</li>
+<li>No page age or update date was available, so I could not test a time-since-refresh effect.</li>
+<li>Only pages with data in both halves of a month are evaluated. Page identities were not matched across months for evaluation.</li>
+<li>The unseen-client check is one small draw. Clients differ, so results may not carry to new sites.</li>
+<li>The priority queue (risk &times; size) had 0.853 precision in its top 500, lower than ranking by model score alone (0.924), because large pages come first.</li>
+</ul>
+
+<h2 id="recs">6. Ranked recommendations (action playbook)</h2>
+<p>Pages are ranked by <code>priority = model score &times; missed clicks</code> (days 1&ndash;15), then given one reason code and one action. Counts are for the top 500 of April&rsquo;s queue (46,330 pages qualified).</p>
+<div class="sc"><table><tr><th>Reason code</th><th>Action</th><th>Top 500</th></tr>
+<tr><td><code>UNDER_CLICKED_PAGE1_REWRITE_SNIPPET</code></td><td>Rewrite title and meta description</td><td>324</td></tr>
+<tr><td><code>UNDER_CLICKED_TOP3_CHECK_SERP</code></td><td>Check search features first; test snippet only if none</td><td>116</td></tr>
+<tr><td><code>DECLINING_AND_UNDER_CLICKED</code></td><td>Review for refresh, then fix snippet</td><td>44</td></tr>
+<tr><td><code>STRIKING_DISTANCE_UNDER_CLICKED</code></td><td>Improve snippet and content depth</td><td>16</td></tr></table></div>
+<h3>Archetypes (rule-based) and observed under-capture later</h3>
+<div class="sc"><table><tr><th>Archetype</th><th>Share</th><th>Under-captured</th><th>Action</th></tr>
+<tr><td>Slipping</td><td>8.3%</td><td>71%</td><td>Refresh review</td></tr>
+<tr><td>Striking distance</td><td>17.5%</td><td>66%</td><td>Improve</td></tr>
+<tr><td>Visible but under-clicked</td><td>36.4%</td><td>66%</td><td>Rewrite snippet</td></tr>
+<tr><td>On par</td><td>17.0%</td><td>30%</td><td>Monitor</td></tr>
+<tr><td>Over-performer</td><td>20.9%</td><td>20%</td><td>Protect, do not rewrite by default</td></tr></table></div>
+<p><b>Decay insight.</b> Pages with a shrinking impression trend under-captured 67% of the time, against 49% for flat and growing pages: a falling trend adds risk, and growth gives no protection. This is directional; it is not a test of refreshing.</p>
+<p><b>Cost and value.</b> Assuming 20 review minutes per page, the top 100 pages offer about 426 missed clicks (days 1&ndash;15 proxy) per review hour; the top 1,000 offer 146. Value falls mostly because lower-ranked pages are smaller, so start at the top and stop where extra hours no longer pay.</p>
+<h3>Human review and what not to automate</h3>
+<p>Before acting, a person checks for search features, how far below expected the CTR is, sudden position or impression moves, intent fit, and facts and brand voice. Do not automate publishing, page deletion or merging, top-3 edits without the search-feature check, causal promises to clients, or use outside positions 1&ndash;20 and 100+ impressions.</p>
+<h3>Monitoring and retrain triggers (proposals)</h3>
+<p>Each month, re-check on the newest month. Retrain if precision@500 falls below base rate + 0.15, AUC falls below 0.70, or the label rate shifts by more than 0.10. Rebuild the expected-CTR curve if the population stability index of CTR gap ratio or position exceeds 0.25. April values (0.924, 0.789, &minus;0.018, 0.043, 0.015) sit well inside these limits.</p>
+
+<h2 id="repro">7. Reproducibility</h2>
+<p>All notebooks and outputs are in the repository: <a href="https://github.com/M-Abdullah-Nazeer/Flyrank-Ml-Pipeline">github.com/M-Abdullah-Nazeer/Flyrank-Ml-Pipeline</a>.</p>
+<ul>
+<li><code>work/notebooks/w03_data_contract.ipynb</code>: contract, grain and availability checks, leakage trap</li>
+<li><code>work/notebooks/w04_baseline_score.ipynb</code> and <code>w04_signal_audit.ipynb</code>: baseline rule and signal verdicts</li>
+<li><code>work/notebooks/w05_model.ipynb</code>: models vs baseline</li>
+<li><code>work/notebooks/w06_validation_audit.ipynb</code>: honest splits and leakage audit</li>
+<li><code>work/notebooks/w07_action_playbook.ipynb</code>: ranked queue, playbook, monitoring</li>
+<li><code>work/outputs/</code>: result tables, playbook files and figures (the public queue file has no identifiers)</li>
+</ul>
+<p>Data access: request the gated dataset on Hugging Face, then read it with DuckDB as shown in the notebooks. Raw data is not redistributed here.</p>
+
+<h2 id="credit">8. Acknowledgments and data credit</h2>
+<p>Built on the <a href="https://flyrank.ai" target="_blank" rel="noopener">FlyRank ML Internship dataset</a>. I thank the FlyRank team for the pseudonymized warehouse release and the internship curriculum, and I read FlyRank&rsquo;s April 2026 report &ldquo;The State of AI-Driven SEO. In Numbers.&rdquo; while learning how to audit validation claims. No client names, domains, URLs or queries appear on this page, and nothing here claims to explain Google&rsquo;s algorithm.</p>
+</main>
+</div>
+</body>
+</html>
