@@ -1,1 +1,1 @@
-PASTE-YOUR-DEPLOYED-PAPER-URL-HERE
+https://m-abdullah-nazeer.github.io/Flyrank-Ml-Pipeline/
