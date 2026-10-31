@@ -43,7 +43,7 @@ a{color:var(--acc)}
 
 <section id="abstract" class="abs">
 <h3 style="margin-top:0">Abstract</h3>
-<p><b>Question.</b> Which already-visible pages will keep earning fewer clicks than expected for their search position, so a content team should review them first?</p>
+<p><b>Question.</b> FlyRank&rsquo;s refresh work flags pages that people see in search but do not click, and rewrites titles when CTR falls below the benchmark for a position tier. A flag does not say which pages matter most, so which already-visible pages will keep earning fewer clicks than expected for their position and should be reviewed first?</p>
 <p><b>Method.</b> From anonymized daily Search Console data, I built page-level features from days 1&ndash;15 of a month and a label from days 16 onward, then trained a gradient-boosting ranker on Feb&ndash;Mar 2026.</p>
 <p><b>Result.</b> On held-out April 2026, it reached AUC 0.789 against 0.680 for a simple missed-clicks rule, and 92% of its top 500 pages truly under-captured (base rate 50%).</p>
 <p><b>Validation.</b> With a later month and unseen clients, the lead held but narrowed (AUC 0.769 vs 0.679), on a small sample.</p>
@@ -52,6 +52,8 @@ a{color:var(--acc)}
 
 <h2 id="intro">1. Introduction</h2>
 <p>Content teams cannot review every page. Many pages are visible in search yet earn fewer clicks than pages at the same position usually do, which points to a snippet, intent or content problem worth a look. The decision this work supports is narrow: <em>which pages should a person review first, and what should they check?</em> The output is a ranked queue with a reason code per page, not an automatic editor.</p>
+<h3>The case study: a CTR flag needs a priority order</h3>
+<p>FlyRank&rsquo;s public April 2026 report describes optimization flags such as &ldquo;Fix CTR&rdquo; (people see the page but do not click) and a workflow that rewrites titles and descriptions when CTR drops below position-tier benchmarks. A flag shows that a problem may exist, not which flagged pages deserve an editor&rsquo;s time first, and a flag could simply reflect one noisy week. This paper uses that situation as its case study. It first asks whether the gap is real and persistent: in the warehouse data, pages whose CTR was far below the expected level for their position got about 0.32&times; the expected clicks later in the month, against 1.6&times; for pages above it. It then ranks pages by how likely the gap is to persist and how many clicks it affects, so a person can start where review is most likely to matter. It uses my own expected-CTR curve from the warehouse, not FlyRank&rsquo;s flags or scores, and it draws only on anonymized data and public statements.</p>
 
 <h2 id="data">2. Data</h2>
 <p><b>Release.</b> FlyRank ML Internship pseudonymized warehouse (July 2026 release), table <code>fact_content_daily_performance</code>, Search Console columns only. One row is one page on one day for one client; the grain was verified (March: 9,841,378 rows, 9,841,378 distinct keys).</p>
